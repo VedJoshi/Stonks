@@ -1,0 +1,2 @@
+# Stonks
+Stock price predictor
