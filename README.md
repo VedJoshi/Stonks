@@ -1,2 +1,1 @@
-# Stonks
-Stock price predictor
+# Trader Joes
