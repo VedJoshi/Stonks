@@ -4,3 +4,6 @@ stonks_py311/
 config/
 quick_start.py
 trading_bot_env/
+pycache/
+test_setup.py
+quick_start.py
