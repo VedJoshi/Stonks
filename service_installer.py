@@ -99,11 +99,11 @@ def install_service():
             TradingBotService._svc_display_name_,
             description=TradingBotService._svc_description_
         )
-        print("✅ Trading Bot service installed successfully!")
+        print("Trading Bot service installed successfully!")
         print("Use 'sc start ProductionTradingBot' to start the service")
         
     except Exception as e:
-        print(f"❌ Error installing service: {e}")
+        print(f"Error installing service: {e}")
 
 def uninstall_service():
     """Uninstall the trading bot service"""

@@ -36,6 +36,19 @@ class ProductionDatabaseManager:
         except Exception as e:
             logging.error(f"Database backup failed: {e}")
     
+    def test_connection(self):
+        """Test database connection"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+            conn.close()
+            return result is not None
+        except Exception as e:
+            logging.error(f"Database connection test failed: {e}")
+            return False
+    
     def init_database(self):
         """Initialize production database with enhanced schema"""
         conn = sqlite3.connect(self.db_path)
@@ -341,3 +354,16 @@ class ProductionDatabaseManager:
         conn.close()
         
         return [dict(zip([column[0] for column in cursor.description], trade)) for trade in trades] if trades else []
+    
+    def test_connection(self):
+        """Test database connection"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+            conn.close()
+            return result is not None
+        except Exception as e:
+            logging.error(f"Database connection test failed: {e}")
+            return False

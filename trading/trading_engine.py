@@ -36,13 +36,13 @@ class ProductionTradingEngine:
             if float(account.cash) < self.config['MAX_SINGLE_TRADE']:
                 self.logger.warning(f"Low cash balance: ${account.cash}")
             
-            self.logger.info(f"✅ Real account connected successfully")
+            self.logger.info(f"Real account connected successfully")
             self.logger.info(f"Account Value: ${float(account.portfolio_value):,.2f}")
             self.logger.info(f"Buying Power: ${float(account.buying_power):,.2f}")
             self.logger.info(f"Cash: ${float(account.cash):,.2f}")
             
         except Exception as e:
-            self.logger.critical(f"❌ Account connection failed: {e}")
+            self.logger.critical(f"Account connection failed: {e}")
             raise
     
     def check_circuit_breaker(self):
@@ -51,7 +51,7 @@ class ProductionTradingEngine:
             # Check daily loss limit
             if abs(self.daily_pnl) >= self.config['DAILY_LOSS_LIMIT']:
                 self.circuit_breaker_triggered = True
-                self.logger.critical(f"🚨 CIRCUIT BREAKER: Daily loss limit reached: ${self.daily_pnl:.2f}")
+                self.logger.critical(f"CIRCUIT BREAKER: Daily loss limit reached: ${self.daily_pnl:.2f}")
                 return False
             
             # Check daily trade limit
@@ -62,7 +62,7 @@ class ProductionTradingEngine:
             # Check account status
             account = self.api.get_account()
             if account.trading_blocked or account.account_blocked:
-                self.logger.critical("🚨 Account is blocked!")
+                self.logger.critical("Account is blocked!")
                 return False
             
             # Check if market is open
@@ -165,7 +165,7 @@ class ProductionTradingEngine:
             stop_loss_price = current_price * (1 - self.config['STOP_LOSS_PERCENT'])
             take_profit_price = current_price * (1 + self.config['TAKE_PROFIT_PERCENT'])
             
-            self.logger.info(f"🔥 Placing BUY order for {symbol}:")
+            self.logger.info(f"Placing BUY order for {symbol}:")
             self.logger.info(f"  Quantity: {quantity} shares")
             self.logger.info(f"  Entry Price: ${current_price:.2f}")
             self.logger.info(f"  Stop Loss: ${stop_loss_price:.2f} (-{self.config['STOP_LOSS_PERCENT']*100:.1f}%)")
@@ -214,9 +214,9 @@ class ProductionTradingEngine:
                         time_in_force='gtc'
                     )
                     
-                    self.logger.info(f"✅ Buy order filled at ${filled_price:.2f}")
-                    self.logger.info(f"✅ Stop-loss placed: {stop_order.id}")
-                    self.logger.info(f"✅ Take-profit placed: {limit_order.id}")
+                    self.logger.info(f"Buy order filled at ${filled_price:.2f}")
+                    self.logger.info(f"Stop-loss placed: {stop_order.id}")
+                    self.logger.info(f"Take-profit placed: {limit_order.id}")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to place stop orders: {e}")
@@ -263,7 +263,7 @@ class ProductionTradingEngine:
             if not current_price:
                 return None
             
-            self.logger.info(f"🔥 Placing SELL order for {symbol}:")
+            self.logger.info(f"Placing SELL order for {symbol}:")
             self.logger.info(f"  Quantity: {quantity} shares")
             self.logger.info(f"  Current Price: ${current_price:.2f}")
             self.logger.info(f"  Sentiment: {sentiment_score:.3f}, Confidence: {confidence:.3f}")
@@ -284,7 +284,7 @@ class ProductionTradingEngine:
             if sell_order.status == 'filled':
                 filled_price = float(sell_order.filled_avg_price)
                 
-                self.logger.info(f"✅ Sell order filled at ${filled_price:.2f}")
+                self.logger.info(f"Sell order filled at ${filled_price:.2f}")
                 
                 # Update tracking
                 self.daily_trades_count += 1
@@ -412,7 +412,7 @@ class ProductionTradingEngine:
     def emergency_close_all_positions(self):
         """Emergency function to close all positions"""
         try:
-            self.logger.critical("🚨 EMERGENCY: Closing all positions!")
+            self.logger.critical("EMERGENCY: Closing all positions!")
             
             positions = self.api.list_positions()
             

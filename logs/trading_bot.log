@@ -1,0 +1,31 @@
+2025-08-05 12:15:46,797 - root - INFO - init_database:172 - Production database initialized successfully
+2025-08-05 12:15:47,660 - trading.trading_engine - INFO - verify_account_connection:40 - Account Value: $100,000.00
+2025-08-05 12:15:47,660 - trading.trading_engine - INFO - verify_account_connection:41 - Buying Power: $200,000.00
+2025-08-05 12:15:47,660 - trading.trading_engine - INFO - verify_account_connection:42 - Cash: $100,000.00
+2025-08-05 12:15:47,661 - risk_management.risk_manager - INFO - __init__:17 - Risk Manager initialized: Max daily loss: $25.0, Max position: $50.0
+2025-08-05 12:15:47,671 - root - INFO - backup_database:35 - Database backed up to database_backups\trading_bot_backup_20250805_121547.db
+2025-08-05 12:15:48,132 - root - INFO - init_database:172 - Production database initialized successfully
+2025-08-05 12:20:00,585 - root - INFO - init_database:172 - Production database initialized successfully
+2025-08-05 12:20:00,595 - __main__ - INFO - __init__:102 - Sentiment analyzer initialized
+2025-08-05 12:20:01,317 - trading.trading_engine - INFO - verify_account_connection:39 - Real account connected successfully
+2025-08-05 12:20:01,317 - trading.trading_engine - INFO - verify_account_connection:40 - Account Value: $100,000.00
+2025-08-05 12:20:01,317 - trading.trading_engine - INFO - verify_account_connection:41 - Buying Power: $200,000.00
+2025-08-05 12:20:01,317 - trading.trading_engine - INFO - verify_account_connection:42 - Cash: $100,000.00
+2025-08-05 12:20:01,318 - __main__ - INFO - __init__:116 - Trading engine initialized
+2025-08-05 12:20:01,318 - risk_management.risk_manager - INFO - __init__:17 - Risk Manager initialized: Max daily loss: $25.0, Max position: $50.0
+2025-08-05 12:20:01,318 - __main__ - INFO - __init__:132 - Risk management initialized
+2025-08-05 12:20:01,318 - __main__ - INFO - __init__:146 - Monitoring systems initialized
+2025-08-05 12:20:01,318 - __main__ - INFO - __init__:156 - Web dashboard initialized
+2025-08-05 12:20:01,318 - __main__ - INFO - __init__:165 - Production Trading Bot initialized successfully
+2025-08-05 12:20:01,319 - __main__ - INFO - start_production_bot:222 - STARTING PRODUCTION TRADING BOT
+2025-08-05 12:20:01,319 - __main__ - INFO - perform_startup_checks:286 - Performing startup checks...
+2025-08-05 12:20:01,320 - root - INFO - backup_database:35 - Database backed up to database_backups\trading_bot_backup_20250805_122001.db
+2025-08-05 12:20:01,320 - __main__ - INFO - perform_startup_checks:306 - Database Access: PASSED
+2025-08-05 12:20:01,320 - __main__ - INFO - perform_startup_checks:306 - Configuration: PASSED
+2025-08-05 12:20:01,543 - __main__ - INFO - perform_startup_checks:306 - API Connection: PASSED
+2025-08-05 12:20:01,768 - __main__ - INFO - perform_startup_checks:306 - Account Status: PASSED
+2025-08-05 12:20:01,769 - __main__ - INFO - perform_startup_checks:315 - Startup checks: 4/4 passed
+2025-08-05 12:20:01,770 - root - INFO - init_database:172 - Production database initialized successfully
+2025-08-05 12:20:01,771 - __main__ - INFO - schedule_trading_operations:380 - Trading operations scheduled
+2025-08-05 12:20:01,771 - __main__ - INFO - schedule_monitoring_operations:399 - Monitoring operations scheduled
+2025-08-05 12:20:01,771 - __main__ - INFO - run_main_loop:409 - Starting main execution loop

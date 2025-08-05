@@ -10,7 +10,6 @@ try:
     from email.mime.multipart import MimeMultipart
     EMAIL_AVAILABLE = True
 except ImportError:
-    print("Warning: Email functionality not available")
     EMAIL_AVAILABLE = False
     MimeText = None
     MimeMultipart = None
@@ -22,14 +21,14 @@ class NotificationSystem:
         self.telegram_enabled = config.get('TELEGRAM_NOTIFICATIONS', False)
         self.logger = logging.getLogger(__name__)
         
-        if self.email_enabled and not EMAIL_AVAILABLE:
-            self.logger.warning("Email notifications disabled due to import issues")
+        if config.get('EMAIL_NOTIFICATIONS', False) and not EMAIL_AVAILABLE:
+            self.logger.info("Email notifications disabled - email modules not available")
             self.email_enabled = False
         
     def send_trade_alert(self, trade_info):
         """Send immediate trade execution alerts"""
         message = f"""
-🔔 TRADE EXECUTED
+TRADE EXECUTED
 Symbol: {trade_info['symbol']}
 Side: {trade_info['side'].upper()}
 Quantity: {trade_info['quantity']} shares
@@ -44,7 +43,7 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     def send_risk_alert(self, alert_type, message):
         """Send risk management alerts"""
         risk_message = f"""
-🚨 RISK ALERT: {alert_type}
+RISK ALERT: {alert_type}
 {message}
 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 Account Status: Check dashboard immediately

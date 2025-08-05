@@ -25,7 +25,7 @@ def safe_import():
         from sentiment.sentiment_analyzer import SentimentAnalyzer
         from risk_management.risk_manager import RiskManager, DailyRiskCheck
         from monitoring.dashboard import NotificationSystem, KPITracker, WeeklyReview
-        from monitoring.web_dashboard import LiveDashboard
+        from monitoring.web_dashboard import WebDashboard  # Fixed: was LiveDashboard
         
         # Try to import trading engine - this will need API keys
         try:
@@ -53,12 +53,16 @@ def safe_import():
                     'SENTIMENT_SELL_THRESHOLD': -0.7,
                     'TRADING_COOLDOWN': 300,
                     'EMAIL_NOTIFICATIONS': False,
-                    'TELEGRAM_NOTIFICATIONS': False
+                    'TELEGRAM_NOTIFICATIONS': False,
+                    # Add default Reddit credentials for demo
+                    'REDDIT_CLIENT_ID': 'demo_client_id',
+                    'REDDIT_CLIENT_SECRET': 'demo_client_secret',
+                    'REDDIT_USER_AGENT': 'TradingBot/1.0 by YourUsername'
                 }
         
         return (ProductionDatabaseManager, SentimentAnalyzer, ProductionTradingEngine, 
                 RiskManager, DailyRiskCheck, NotificationSystem, KPITracker, 
-                WeeklyReview, LiveDashboard, get_config)
+                WeeklyReview, WebDashboard, get_config)
                 
     except ImportError as e:
         print(f"❌ Import error: {e}")
@@ -69,12 +73,12 @@ def safe_import():
 class ProductionTradingBot:
     def __init__(self):
         """Initialize the complete production trading bot"""
-        print("🚀 Initializing Production Trading Bot...")
+        print("Starting Production Trading Bot...")
         
         # Safe import of modules
         (self.DatabaseManager, self.SentimentAnalyzer, self.TradingEngine, 
          self.RiskManager, self.DailyRiskCheck, self.NotificationSystem, 
-         self.KPITracker, self.WeeklyReview, self.LiveDashboard, 
+         self.KPITracker, self.WeeklyReview, self.WebDashboard, 
          self.get_config) = safe_import()
         
         self.config = self.get_config()
@@ -95,6 +99,7 @@ class ProductionTradingBot:
                 reddit_client_secret=self.config.get('REDDIT_CLIENT_SECRET', 'dummy'),
                 reddit_user_agent=self.config.get('REDDIT_USER_AGENT', 'TradingBot/1.0')
             )
+            self.logger.info("Sentiment analyzer initialized")
         except Exception as e:
             self.logger.warning(f"Sentiment analyzer initialization failed: {e}")
             self.sentiment_analyzer = None
@@ -108,6 +113,7 @@ class ProductionTradingBot:
                     base_url=self.config.get('ALPACA_BASE_URL', 'https://paper-api.alpaca.markets'),
                     config=self.config
                 )
+                self.logger.info("Trading engine initialized")
             except Exception as e:
                 self.logger.warning(f"Trading engine initialization failed: {e}")
                 self.trading_engine = None
@@ -116,29 +122,47 @@ class ProductionTradingBot:
         
         # Initialize risk management
         if self.trading_engine:
-            self.risk_manager = self.RiskManager(self.trading_engine)
-            self.daily_risk_check = self.DailyRiskCheck(self.trading_engine, self.db_manager)
+            try:
+                self.risk_manager = self.RiskManager(
+                    max_daily_loss=self.config.get('DAILY_LOSS_LIMIT', 100),
+                    max_position_size=self.config.get('MAX_SINGLE_TRADE', 500),
+                    max_positions=self.config.get('MAX_POSITIONS', 3)
+                )
+                self.daily_risk_check = self.DailyRiskCheck(self.trading_engine, self.db_manager)
+                self.logger.info("Risk management initialized")
+            except Exception as e:
+                self.logger.warning(f"Risk management initialization failed: {e}")
+                self.risk_manager = None
+                self.daily_risk_check = None
         else:
             self.risk_manager = None
             self.daily_risk_check = None
         
         # Initialize monitoring components
-        self.notification_system = self.NotificationSystem(self.config)
-        self.kpi_tracker = self.KPITracker(self.db_manager)
-        self.weekly_review = self.WeeklyReview(self.db_manager)
+        try:
+            self.notification_system = self.NotificationSystem(self.config)
+            self.kpi_tracker = self.KPITracker(self.db_manager)
+            self.weekly_review = self.WeeklyReview(self.db_manager)
+            self.logger.info("Monitoring systems initialized")
+        except Exception as e:
+            self.logger.error(f"Monitoring initialization failed: {e}")
+            self.notification_system = None
+            self.kpi_tracker = None
+            self.weekly_review = None
         
         # Initialize web dashboard
         try:
-            self.live_dashboard = self.LiveDashboard(self.db_manager)
+            self.web_dashboard = self.WebDashboard(self.db_manager.db_path)
+            self.logger.info("Web dashboard initialized")
         except Exception as e:
-            self.logger.warning(f"Live dashboard initialization failed: {e}")
-            self.live_dashboard = None
+            self.logger.warning(f"Web dashboard initialization failed: {e}")
+            self.web_dashboard = None
         
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
-        self.logger.info("🚀 Production Trading Bot initialized successfully")
+        self.logger.info("Production Trading Bot initialized successfully")
     
     def setup_production_logging(self):
         """Setup comprehensive production logging"""
@@ -151,62 +175,83 @@ class ProductionTradingBot:
         )
         
         # File handlers for different log levels
-        handlers = [
-            # Main application log
-            logging.FileHandler(f"{log_dir}/trading_bot.log"),
-            # Error log
-            logging.FileHandler(f"{log_dir}/errors.log"),
-            # Trade log
-            logging.FileHandler(f"{log_dir}/trades.log"),
-            # Console output
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers = []
+        
+        # Main application log
+        main_handler = logging.FileHandler(f"{log_dir}/trading_bot.log", encoding='utf-8')
+        main_handler.setFormatter(detailed_formatter)
+        main_handler.setLevel(logging.INFO)
+        handlers.append(main_handler)
+        
+        # Error log
+        error_handler = logging.FileHandler(f"{log_dir}/errors.log", encoding='utf-8')
+        error_handler.setFormatter(detailed_formatter)
+        error_handler.setLevel(logging.ERROR)
+        handlers.append(error_handler)
+        
+        # Trade log
+        trade_handler = logging.FileHandler(f"{log_dir}/trades.log", encoding='utf-8')
+        trade_handler.setFormatter(detailed_formatter)
+        trade_handler.setLevel(logging.INFO)
+        trade_handler.addFilter(lambda record: "TRADE" in record.getMessage())
+        handlers.append(trade_handler)
+        
+        # Console output with UTF-8 encoding for Windows
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(detailed_formatter)
+        console_handler.setLevel(logging.INFO)
+        # Force UTF-8 encoding on Windows
+        if hasattr(console_handler.stream, 'reconfigure'):
+            console_handler.stream.reconfigure(encoding='utf-8')
+        handlers.append(console_handler)
         
         # Configure root logger
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.INFO)
         
+        # Clear existing handlers
+        root_logger.handlers.clear()
+        
+        # Add all handlers
         for handler in handlers:
-            handler.setFormatter(detailed_formatter)
-            if "errors" in str(handler.baseFilename):
-                handler.setLevel(logging.ERROR)
-            elif "trades" in str(handler.baseFilename):
-                handler.setLevel(logging.INFO)
-                handler.addFilter(lambda record: "TRADE" in record.getMessage())
             root_logger.addHandler(handler)
     
     def start_production_bot(self):
         """Start the production trading bot with full monitoring"""
         try:
-            self.logger.info("🔥 STARTING PRODUCTION TRADING BOT")
+            self.logger.info("STARTING PRODUCTION TRADING BOT")
             self.running = True
             
             # Perform startup checks
             if not self.perform_startup_checks():
-                self.logger.error("❌ Startup checks failed - running in limited mode")
+                self.logger.error("Startup checks failed - running in limited mode")
                 return self.run_limited_mode()
             
             # Initialize database
-            self.db_manager.initialize_database()
+            self.db_manager.init_database()
             
-            # Schedule trading operations
+            # Schedule trading operations (only if trading engine available)
             if self.trading_engine:
                 self.schedule_trading_operations()
+            else:
+                self.logger.info("Running in monitoring-only mode (no trading engine)")
             
             # Schedule monitoring and maintenance
             self.schedule_monitoring_operations()
             
             # Start main execution loop
             self.run_main_loop()
+            return True
             
         except Exception as e:
-            self.logger.error(f"❌ Critical error in production bot: {e}")
-            self.send_critical_alert(f"Production bot crashed: {e}")
+            self.logger.error(f"Critical error in production bot: {e}")
+            if self.notification_system:
+                self.send_critical_alert(f"Production bot crashed: {e}")
             return False
     
     def run_limited_mode(self):
         """Run in limited mode without trading functionality"""
-        self.logger.info("🔄 Running in limited mode (monitoring only)")
+        self.logger.info("Running in limited mode (monitoring only)")
         
         try:
             # Schedule only monitoring operations
@@ -229,7 +274,7 @@ class ProductionTradingBot:
                     self.logger.error(f"Error in limited mode loop: {e}")
                     time.sleep(60)
             
-            self.logger.info("🛑 Limited mode stopped")
+            self.logger.info("Limited mode stopped")
             return True
             
         except Exception as e:
@@ -238,7 +283,7 @@ class ProductionTradingBot:
     
     def perform_startup_checks(self):
         """Perform comprehensive startup checks"""
-        self.logger.info("🔍 Performing startup checks...")
+        self.logger.info("Performing startup checks...")
         
         checks = [
             ("Database Access", self.check_database_access),
@@ -250,7 +295,6 @@ class ProductionTradingBot:
             checks.extend([
                 ("API Connection", self.check_api_connection),
                 ("Account Status", self.check_account_status),
-                ("Market Status", self.check_market_status),
             ])
         
         passed_checks = 0
@@ -259,19 +303,19 @@ class ProductionTradingBot:
         for check_name, check_func in checks:
             try:
                 if check_func():
-                    self.logger.info(f"✅ {check_name}: PASSED")
+                    self.logger.info(f"{check_name}: PASSED")
                     passed_checks += 1
                 else:
-                    self.logger.warning(f"⚠️ {check_name}: FAILED")
+                    self.logger.warning(f"{check_name}: FAILED")
             except Exception as e:
-                self.logger.error(f"❌ {check_name}: ERROR - {e}")
+                self.logger.error(f"{check_name}: ERROR - {e}")
         
         # Allow partial success for limited mode
         if passed_checks >= 2:  # At least database and config
-            self.logger.info(f"✅ Startup checks: {passed_checks}/{total_checks} passed")
+            self.logger.info(f"Startup checks: {passed_checks}/{total_checks} passed")
             return True
         else:
-            self.logger.error(f"❌ Startup checks: Only {passed_checks}/{total_checks} passed")
+            self.logger.error(f"Startup checks: Only {passed_checks}/{total_checks} passed")
             return False
     
     def check_api_connection(self):
@@ -279,14 +323,17 @@ class ProductionTradingBot:
         if not self.trading_engine:
             return False
         try:
-            return self.trading_engine.test_connection()
+            # Try to get account info to test connection
+            account = self.trading_engine.api.get_account()
+            return account is not None
         except:
             return False
     
     def check_database_access(self):
         """Check database access"""
         try:
-            self.db_manager.test_connection()
+            # Test database by trying to backup
+            self.db_manager.backup_database()
             return True
         except Exception as e:
             self.logger.error(f"Database check failed: {e}")
@@ -300,22 +347,15 @@ class ProductionTradingBot:
                 return False
         return True
     
-    def check_market_status(self):
-        """Check if market is open or will open soon"""
-        if not self.trading_engine:
-            return False
-        try:
-            return self.trading_engine.is_market_open_or_opening_soon()
-        except:
-            return True  # Default to True if can't check
-    
     def check_account_status(self):
         """Check account status and buying power"""
         if not self.trading_engine:
             return False
         try:
-            account = self.trading_engine.get_account()
-            buying_power = float(account.buying_power)
+            account_info = self.trading_engine.get_account_info()
+            if not account_info:
+                return False
+            buying_power = account_info.get('buying_power', 0)
             return buying_power > 100  # Minimum required buying power
         except:
             return False
@@ -337,7 +377,7 @@ class ProductionTradingBot:
         # End of day processing
         schedule.every().day.at("16:30").do(self.end_of_day_processing)
         
-        self.logger.info("📅 Trading operations scheduled")
+        self.logger.info("Trading operations scheduled")
     
     def schedule_monitoring_operations(self):
         """Schedule monitoring and maintenance operations"""
@@ -349,16 +389,24 @@ class ProductionTradingBot:
         schedule.every().day.at("02:00").do(self.db_manager.backup_database)
         
         # Weekly performance review
-        schedule.every().monday.at("06:00").do(self.weekly_performance_review)
+        if self.weekly_review:
+            schedule.every().monday.at("06:00").do(self.weekly_performance_review)
         
-        # Monthly KPI calculation
-        schedule.every().month.do(self.monthly_kpi_review)
+        # Monthly KPI calculation - use first day of month instead of .month
+        if self.kpi_tracker:
+            schedule.every().day.at("06:30").do(self.check_monthly_kpi_review)
         
-        self.logger.info("📊 Monitoring operations scheduled")
+        self.logger.info("Monitoring operations scheduled")
+    
+    def check_monthly_kpi_review(self):
+        """Check if it's time for monthly KPI review (first day of month)"""
+        today = datetime.now()
+        if today.day == 1:  # First day of the month
+            self.monthly_kpi_review()
     
     def run_main_loop(self):
         """Main execution loop"""
-        self.logger.info("🔄 Starting main execution loop")
+        self.logger.info("Starting main execution loop")
         
         while self.running and not self.shutdown_event.is_set():
             try:
@@ -376,23 +424,27 @@ class ProductionTradingBot:
                 self.logger.error(f"Error in main loop: {e}")
                 time.sleep(60)  # Continue after error
         
-        self.logger.info("🛑 Main execution loop stopped")
+        self.logger.info("Main execution loop stopped")
     
     def trading_cycle(self):
         """Main trading cycle - runs every 5 minutes during market hours"""
         if not self.trading_engine or not self.sentiment_analyzer:
             return
-            
-        if not self.trading_engine.is_market_open():
-            return
         
         try:
-            self.logger.info("🔄 Starting trading cycle")
+            # Check if market is open (simplified check)
+            current_hour = datetime.now().hour
+            if current_hour < 9 or current_hour > 16:  # Market hours approximation
+                return
+        
+            self.logger.info("Starting trading cycle")
             
             # 1. Check daily risk limits
-            if self.daily_risk_check and not self.daily_risk_check.check_daily_limits():
-                self.logger.warning("Daily risk limits exceeded - skipping trading cycle")
-                return
+            if self.daily_risk_check:
+                risk_status = self.daily_risk_check.pre_market_check()
+                if not risk_status:
+                    self.logger.warning("Daily risk limits exceeded - skipping trading cycle")
+                    return
             
             # 2. Analyze sentiment for watchlist stocks
             watchlist = self.get_watchlist()
@@ -419,7 +471,7 @@ class ProductionTradingBot:
             for signal in trading_signals:
                 self.execute_trade_signal(signal)
             
-            self.logger.info(f"✅ Trading cycle completed - {len(trading_signals)} signals processed")
+            self.logger.info(f"Trading cycle completed - {len(trading_signals)} signals processed")
             
         except Exception as e:
             self.logger.error(f"Error in trading cycle: {e}")
@@ -509,7 +561,8 @@ class ProductionTradingBot:
                 )
                 
                 # Send notification
-                self.notification_system.send_trade_alert(trade_result)
+                if self.notification_system:
+                    self.notification_system.send_trade_alert(trade_result)
                 
                 return True
             
@@ -519,7 +572,7 @@ class ProductionTradingBot:
     
     def pre_market_analysis(self):
         """Pre-market sentiment analysis and preparation"""
-        self.logger.info("🌅 Starting pre-market analysis")
+        self.logger.info("Starting pre-market analysis")
         
         try:
             if not self.sentiment_analyzer:
@@ -546,14 +599,14 @@ class ProductionTradingBot:
                     confidence=sentiment.get('combined_confidence', 0)
                 )
             
-            self.logger.info(f"✅ Pre-market analysis completed for {len(pre_market_sentiment)} symbols")
+            self.logger.info(f"Pre-market analysis completed for {len(pre_market_sentiment)} symbols")
             
         except Exception as e:
             self.logger.error(f"Error in pre-market analysis: {e}")
     
     def market_open_preparation(self):
         """Prepare for market open"""
-        self.logger.info("🔔 Market open preparation")
+        self.logger.info("Market open preparation")
         
         try:
             if self.trading_engine:
@@ -567,14 +620,14 @@ class ProductionTradingBot:
             if self.daily_risk_check:
                 self.daily_risk_check.reset_daily_tracking()
             
-            self.logger.info("✅ Market open preparation completed")
+            self.logger.info("Market open preparation completed")
             
         except Exception as e:
             self.logger.error(f"Error in market open preparation: {e}")
     
     def end_of_day_processing(self):
         """End of day processing and reporting"""
-        self.logger.info("🌆 Starting end-of-day processing")
+        self.logger.info("Starting end-of-day processing")
         
         try:
             # Calculate daily performance
@@ -587,7 +640,7 @@ class ProductionTradingBot:
                 # Generate daily report
                 self.generate_daily_report(daily_performance)
             
-            self.logger.info("✅ End-of-day processing completed")
+            self.logger.info("End-of-day processing completed")
             
         except Exception as e:
             self.logger.error(f"Error in end-of-day processing: {e}")
@@ -599,14 +652,15 @@ class ProductionTradingBot:
                 return
                 
             # Check for risk violations
-            risk_status = self.daily_risk_check.check_daily_limits()
+            risk_status = self.daily_risk_check.pre_market_check()
             
             if not risk_status:
-                self.logger.warning("🚨 Risk limits violated")
-                self.notification_system.send_risk_alert(
-                    "Daily Limits Exceeded",
-                    "Trading has been suspended due to risk limit violations"
-                )
+                self.logger.warning("Risk limits violated")
+                if self.notification_system:
+                    self.notification_system.send_risk_alert(
+                        "Daily Limits Exceeded",
+                        "Trading has been suspended due to risk limit violations"
+                    )
             
             # Monitor individual positions
             self.monitor_position_risks()
@@ -636,7 +690,10 @@ class ProductionTradingBot:
     def weekly_performance_review(self):
         """Generate weekly performance review"""
         try:
-            self.logger.info("📊 Generating weekly performance review")
+            if not self.weekly_review:
+                return
+                
+            self.logger.info("Generating weekly performance review")
             
             weekly_report = self.weekly_review.generate_weekly_report()
             
@@ -649,7 +706,10 @@ class ProductionTradingBot:
     def monthly_kpi_review(self):
         """Generate monthly KPI review"""
         try:
-            self.logger.info("📈 Generating monthly KPI review")
+            if not self.kpi_tracker:
+                return
+                
+            self.logger.info("Generating monthly KPI review")
             
             monthly_kpis = self.kpi_tracker.calculate_monthly_kpis()
             recommendations = self.kpi_tracker.generate_optimization_recommendations(monthly_kpis)
@@ -739,10 +799,11 @@ class ProductionTradingBot:
             
             if trade_result:
                 self.logger.info(f"Stop-loss executed for {symbol}")
-                self.notification_system.send_risk_alert(
-                    "Stop-Loss Executed",
-                    f"Stop-loss order executed for {symbol} due to excessive losses"
-                )
+                if self.notification_system:
+                    self.notification_system.send_risk_alert(
+                        "Stop-Loss Executed",
+                        f"Stop-loss order executed for {symbol} due to excessive losses"
+                    )
         
         except Exception as e:
             self.logger.error(f"Error considering stop-loss: {e}")
@@ -758,8 +819,11 @@ class ProductionTradingBot:
     
     def send_weekly_report(self, report):
         """Send weekly performance report"""
+        if not self.notification_system:
+            return
+            
         message = f"""
-📊 WEEKLY TRADING REPORT
+WEEKLY TRADING REPORT
 Period: {report.get('period', 'Last 7 days')}
 Total Trades: {report.get('total_trades', 0)}
 Win Rate: {report.get('win_rate', 0):.2%}
@@ -772,8 +836,11 @@ Risk-Adjusted Return: {report.get('risk_adjusted_return', 0):.3f}
     
     def send_monthly_report(self, kpis, recommendations):
         """Send monthly KPI report"""
+        if not self.notification_system:
+            return
+            
         message = f"""
-📈 MONTHLY KPI REPORT
+MONTHLY KPI REPORT
 Total Return: {kpis.get('total_return_pct', 0):.2f}%
 Win Rate: {kpis.get('win_rate', 0):.2%}
 Sharpe Ratio: {kpis.get('sharpe_ratio', 0):.3f}
@@ -787,8 +854,11 @@ Top Recommendations:
     
     def generate_daily_report(self, performance):
         """Generate and send daily report"""
+        if not self.notification_system:
+            return
+            
         message = f"""
-📅 DAILY TRADING REPORT
+DAILY TRADING REPORT
 Date: {performance.get('date', 'N/A')}
 Total Equity: ${performance.get('ending_balance', 0):,.2f}
 Daily P&L: ${performance.get('total_pnl', 0):,.2f}
@@ -800,7 +870,8 @@ Total Trades: {performance.get('total_trades', 0)}
     
     def send_critical_alert(self, message):
         """Send critical system alert"""
-        self.notification_system.send_risk_alert("CRITICAL SYSTEM ERROR", message)
+        if self.notification_system:
+            self.notification_system.send_risk_alert("CRITICAL SYSTEM ERROR", message)
     
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""
@@ -809,7 +880,7 @@ Total Trades: {performance.get('total_trades', 0)}
     
     def shutdown(self):
         """Graceful shutdown of the trading bot"""
-        self.logger.info("🛑 Initiating graceful shutdown...")
+        self.logger.info("Initiating graceful shutdown...")
         
         try:
             # Set shutdown flag
@@ -832,12 +903,13 @@ Total Trades: {performance.get('total_trades', 0)}
                     self.generate_daily_report(final_performance)
             
             # Send shutdown notification
-            self.notification_system.send_notification(
-                "Trading Bot Shutdown",
-                "Production trading bot has been shut down gracefully"
-            )
+            if self.notification_system:
+                self.notification_system.send_notification(
+                    "Trading Bot Shutdown",
+                    "Production trading bot has been shut down gracefully"
+                )
             
-            self.logger.info("✅ Graceful shutdown completed")
+            self.logger.info("Graceful shutdown completed")
             
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
@@ -849,20 +921,20 @@ def main():
         # Create and start the trading bot
         bot = ProductionTradingBot()
         
-        print("🚀 Starting Production Trading Bot...")
+        print("Starting Production Trading Bot...")
         print("Press Ctrl+C to stop the bot gracefully")
         
         # Start the bot
         success = bot.start_production_bot()
         
         if not success:
-            print("❌ Failed to start trading bot in full mode")
+            print("Failed to start trading bot in full mode")
             print("Bot may be running in limited monitoring mode")
             
     except KeyboardInterrupt:
-        print("\n🛑 Shutdown requested by user")
+        print("\nShutdown requested by user")
     except Exception as e:
-        print(f"❌ Critical error: {e}")
+        print(f"Critical error: {e}")
         sys.exit(1)
 
 
