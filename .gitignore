@@ -7,3 +7,5 @@ trading_bot_env/
 pycache/
 test_setup.py
 quick_start.py
+database_backups/
+logs/
